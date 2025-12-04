@@ -12,6 +12,8 @@ COPY packages ./packages
 COPY artifacts ./artifacts
 
 RUN pnpm install --frozen-lockfile
+ENV DATABASE_URL="file:/app/data/sqlite/malro.db"
+RUN pnpm --filter server exec prisma generate
 RUN pnpm --filter server build
 
 EXPOSE 4000
