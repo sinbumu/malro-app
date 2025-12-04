@@ -1,13 +1,20 @@
 import { z } from 'zod';
 
-export const MenuItemSchema = z.object({
-  sku: z.string().min(1),
-  display: z.string().min(1),
-  temps: z.array(z.string().min(1)).nonempty(),
-  base_price: z.record(z.number().nonnegative()),
-  sizes_enabled: z.boolean(),
-  allow_options: z.array(z.string().min(1))
-});
+export const MenuItemSchema = z
+  .object({
+    sku: z.string().min(1),
+    display: z.string().min(1),
+    temps: z.array(z.string().min(1)).optional(),
+    base_price: z.record(z.number().nonnegative()),
+    sizes_enabled: z.boolean().optional(),
+    allow_options: z.array(z.string().min(1)).optional()
+  })
+  .transform((item) => ({
+    ...item,
+    temps: item.temps ?? [],
+    sizes_enabled: item.sizes_enabled ?? false,
+    allow_options: item.allow_options ?? []
+  }));
 
 export const MenuArtifactSchema = z.object({
   version: z.string().min(1),
@@ -15,7 +22,7 @@ export const MenuArtifactSchema = z.object({
 });
 
 export const AliasEntrySchema = z.object({
-  sku: z.string().min(1),
+  sku: z.string().min(1).optional(),
   temp: z.string().optional(),
   size: z.string().optional(),
   notes: z.string().optional()
@@ -47,8 +54,8 @@ export const EvalsetEntrySchema = z.object({
   gold: z.record(z.unknown())
 });
 
-export type MenuArtifact = z.infer<typeof MenuArtifactSchema>;
-export type MenuItem = z.infer<typeof MenuItemSchema>;
+export type MenuArtifact = z.output<typeof MenuArtifactSchema>;
+export type MenuItem = z.output<typeof MenuItemSchema>;
 export type AliasMap = z.infer<typeof AliasMapSchema>;
 export type FewShotExample = z.infer<typeof FewShotSchema>;
 export type ArtifactManifest = z.infer<typeof ManifestSchema>;

@@ -84,13 +84,13 @@ export class ArtifactService implements OnModuleInit {
     return path.resolve(process.cwd(), '../../artifacts/cafe');
   }
 
-  private async readJsonFile<T>(schema: z.ZodType<T>, filePath: string): Promise<T> {
+  private async readJsonFile<T extends z.ZodTypeAny>(schema: T, filePath: string): Promise<z.output<T>> {
     const raw = await readFile(filePath, 'utf-8');
     const json = JSON.parse(raw) as unknown;
     return schema.parse(json);
   }
 
-  private async readJsonlFile<T>(schema: z.ZodType<T>, filePath: string): Promise<T[]> {
+  private async readJsonlFile<T extends z.ZodTypeAny>(schema: T, filePath: string): Promise<Array<z.output<T>>> {
     const raw = await readFile(filePath, 'utf-8');
     const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0);
     return lines.map((line, index) => {

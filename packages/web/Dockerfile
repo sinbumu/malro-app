@@ -14,7 +14,10 @@ COPY artifacts ./artifacts
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter web build
 
+ENV PORT=3000
+ENV HOST=0.0.0.0
+
 EXPOSE 3000
 
-CMD ["pnpm", "--filter", "web", "start", "--", "-H", "0.0.0.0", "-p", "3000"]
+CMD ["pnpm", "--filter", "web", "exec", "next", "start", "-H", "0.0.0.0", "-p", "3000"]
 
