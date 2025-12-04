@@ -1,0 +1,31 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  sessionId       String?
+  orderType       String
+  status          String      @default("PENDING")
+  notes           String?
+  artifactVersion String
+  artifactHash    String
+  items           OrderItem[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId   String
+  sku       String
+  label     String
+  qty       Int
+  options   String?
+}

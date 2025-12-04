@@ -4,6 +4,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ArtifactsModule } from './artifacts/artifacts.module';
 import { NlModule } from './nl/nl.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -13,7 +15,9 @@ import { NlModule } from './nl/nl.module';
       cache: true
     }),
     ArtifactsModule,
-    NlModule
+    PrismaModule,
+    NlModule,
+    OrdersModule
   ],
   controllers: [AppController],
   providers: [AppService]
