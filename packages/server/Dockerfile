@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:20-bookworm-slim AS base
 
 WORKDIR /app
 
@@ -7,6 +7,8 @@ ENV PATH="$PNPM_HOME:$PATH"
 
 RUN corepack enable
 
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages ./packages
 COPY artifacts ./artifacts
@@ -14,6 +16,7 @@ COPY artifacts ./artifacts
 RUN pnpm install --frozen-lockfile
 ENV DATABASE_URL="file:/app/data/sqlite/malro.db"
 RUN pnpm --filter server exec prisma generate
+RUN pnpm --filter server exec prisma db push
 RUN pnpm --filter server build
 
 EXPOSE 4000
