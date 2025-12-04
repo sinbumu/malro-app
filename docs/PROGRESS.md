@@ -7,10 +7,10 @@
 - **NestJS 서버 베이스**: `@nestjs/config` 적용, `AppModule`/`AppController` 구성, `GET /health`, `GET /artifacts` 기본 엔드포인트 제공.
 - **아티팩트 Preflight**: 서버 기동 시 `menu.json`, `aliases.json`, `few_shots.jsonl`, `evalset.jsonl`, `artifact_manifest.json`을 Zod 스키마로 검증하고 카운트 불일치 시 부팅 차단.
 - **Next.js 앱 기본 UI**: `/kiosk`, `/admin` 페이지 골격과 전역 레이아웃/스타일 구축, Tailwind/React Query 등 핵심 의존성 설치.
+- **/nl/parse MVP**: Artifact 기반의 간단한 룰 엔진으로 메뉴/수량/온도 추출, 부족 슬롯에 대한 ASK 응답 포함.
 
 ## 진행 중
 
-- `/nl/parse` LLM 파이프라인 MVP 설계 (ASK/ORDER_DRAFT 스키마, few-shot 선택 정책 반영 예정)
 - `/kiosk` 세션 관리 및 대화 흐름 연동 (sessionId 생성·저장, 메시지 큐 UI)
 
 ## 다음 단계
