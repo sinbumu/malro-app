@@ -1,0 +1,42 @@
+version: '3.9'
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - PORT=4000
+      - DATABASE_URL=file:/app/data/sqlite/malro.db
+      - ARTIFACTS_DIR=/app/artifacts/cafe
+    volumes:
+      - ./artifacts:/app/artifacts:ro
+      - ./data/sqlite:/app/data/sqlite
+    expose:
+      - "4000"
+
+  web:
+    build:
+      context: .
+      dockerfile: packages/web/Dockerfile
+    env_file:
+      - .env
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=/api
+    depends_on:
+      - server
+    expose:
+      - "3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+      - server
+

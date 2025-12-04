@@ -66,6 +66,25 @@ pnpm dev:web
 - 서버: `http://localhost:4000/api/health`, `.../artifacts`
 - 웹: `http://localhost:3000` ( /kiosk, /admin 라우트 포함 )
 
+### 환경 변수 준비
+
+1. `cp env.example .env`
+2. 필요 값(특히 `OPENAI_API_KEY`, `NEXT_PUBLIC_API_BASE_URL`)을 환경에 맞게 수정  
+   - 로컬 개발 시 `NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/api`  
+   - Docker Compose + nginx 환경에서는 `/api`
+
+### Docker Compose 로컬 실행
+
+```
+docker compose up -d --build
+```
+
+- `server` : `packages/server/Dockerfile` 기준 NestJS 빌드 → `pnpm --filter server start`
+- `web` : Next.js `next build` 후 `next start -H 0.0.0.0 -p 3000`
+- `nginx` : `infra/nginx.conf` 로 `/api/*` 는 서버, 나머지는 웹으로 프록시
+- 브라우저에서 `http://localhost` 접속 → `/kiosk`, `/admin` 확인
+- 종료: `docker compose down`
+
 ## 개발 워크플로
 
 1. **아티팩트 Preflight**  
