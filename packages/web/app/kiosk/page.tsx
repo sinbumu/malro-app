@@ -5,6 +5,7 @@ import { ChatMessage as ChatMessageType, OrderDraft, callParseApi, confirmOrder 
 import { ChatMessage } from "../../components/ChatMessage";
 import { OrderSummaryCard } from "../../components/OrderSummaryCard";
 import { useMockSTT } from "../../hooks/useMockSTT";
+import { useSessionId } from "../../hooks/useSessionId";
 
 export default function KioskPage() {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -13,6 +14,7 @@ export default function KioskPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const stt = useMockSTT();
+  const { sessionId, resetSession } = useSessionId();
 
   const hasMessages = useMemo(() => messages.length > 0, [messages]);
 
@@ -30,7 +32,7 @@ export default function KioskPage() {
     setIsLoading(true);
 
     try {
-      const result = await callParseApi(userMessage.content);
+      const result = await callParseApi(userMessage.content, sessionId ?? undefined);
       if (result.type === "ASK") {
         setMessages((prev) => [
           ...prev,
@@ -63,7 +65,7 @@ export default function KioskPage() {
   async function handleConfirm() {
     if (!draft || isConfirming) return;
     setIsConfirming(true);
-    const res = await confirmOrder(draft);
+    const res = await confirmOrder(draft, sessionId ?? undefined);
     setIsConfirming(false);
     if (res.ok) {
       setMessages((prev) => [
@@ -84,6 +86,7 @@ export default function KioskPage() {
     setMessages([]);
     setDraft(null);
     setCurrentInput("");
+    resetSession();
   }
 
   function handleMic() {

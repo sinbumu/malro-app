@@ -1,6 +1,6 @@
 "use client";
 
-import { OrderDraft } from "../lib/apiMock";
+import { DraftItem, OrderDraft } from "../lib/apiMock";
 
 interface Props {
   draft: OrderDraft;
@@ -25,9 +25,10 @@ export function OrderSummaryCard({ draft, onConfirm, isConfirming }: Props) {
         {draft.items.map((item, idx) => (
           <li key={idx} className="rounded-xl border border-neutral-200 px-4 py-3">
             <p className="font-semibold">{item.label}</p>
-            <p className="text-neutral-500">
-              수량 {item.qty} · {item.options}
-            </p>
+            <p className="text-neutral-500">수량 {item.qty}</p>
+            {item.options && (
+              <p className="text-xs text-neutral-400">옵션: {formatOptions(item)}</p>
+            )}
           </li>
         ))}
       </ul>
@@ -39,8 +40,14 @@ export function OrderSummaryCard({ draft, onConfirm, isConfirming }: Props) {
       >
         {isConfirming ? "확정 중..." : "주문 확정"}
       </button>
-      <p className="mt-2 text-xs text-neutral-400">※ 실제 API 연동 시 `/order/confirm` 호출 예정</p>
+      <p className="mt-2 text-xs text-neutral-400">※ NestJS `/order/confirm` API와 연동됩니다.</p>
     </section>
   );
+}
+
+function formatOptions(item: DraftItem) {
+  return Object.entries(item.options ?? {})
+    .map(([key, value]) => `${key}:${value}`)
+    .join(", ");
 }
 
