@@ -1,0 +1,13 @@
+node_modules
+.pnp.cjs
+.pnp.loader.mjs
+.pnpm-store
+*.log
+.DS_Store
+dist
+.next
+coverage
+.env
+.env.local
+.tmp
+artifacts/**/tmp

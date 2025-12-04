@@ -169,6 +169,56 @@ malro-app/
 
 DB 스키마는 `Prisma schema` 기반으로 `Order`, `OrderItem`, `Session`, `Message` 등을 정의한다.
 
+### LLM 파이프라인 세부 정책
+
+- **few-shot 선택**: 입력 문장과 매칭된 SKU/옵션 기준 Top-N(예: 5개) 샘플만 컨텍스트에 포함해 토큰 사용량을 제어한다.
+- **토큰/지연 가드레일**: OpenAI 호출 시 `max_tokens`, `temperature`, `timeout(ms)` 를 명시하여 예측 불가한 지연/비용을 억제한다.
+- **재시도/폴백**:
+  - 1차 응답이 Zod/JSON Schema 검증에 실패하면 동일 입력으로 1회 재시도한다.
+  - 재시도도 실패하면 `"ASK"` 템플릿(“메뉴를 다시 한 번 정확히 말씀해 주세요”)을 반환해 안전하게 복구한다.
+
+### ASK / ORDER_DRAFT JSON 스키마 (요약)
+
+**ASK 예시**
+
+```jsonc
+{
+  "type": "ASK",
+  "missingSlots": ["temp", "size"],
+  "message": "아이스 / 핫 중 하나를 선택해 주세요.",
+  "optionsHint": ["ICE", "HOT"]
+}
+```
+
+**ORDER_DRAFT 예시**
+
+```jsonc
+{
+  "type": "ORDER_DRAFT",
+  "orderType": "TAKE_OUT",
+  "items": [
+    {
+      "sku": "AMERICANO",
+      "label": "아이스 아메리카노",
+      "qty": 2,
+      "options": {
+        "size": "M",
+        "temp": "ICE",
+        "ice": "less",
+        "shot": 1
+      }
+    }
+  ],
+  "notes": "시럽 없음",
+  "artifactVersion": "cafe@0.1.0",
+  "artifactHash": "..."
+}
+```
+
+- **필수 슬롯**: `type`, `orderType`, `items[].sku`, `items[].qty`
+- **선택 슬롯**: `items[].options.{size,temp,ice,shot}`, `notes`
+- **복수 메뉴 처리**: `items` 배열에 여러 SKU를 담고 각 항목별 옵션을 독립적으로 관리한다.
+
 ---
 
 ## 6. 프론트 설계 요약
@@ -210,6 +260,18 @@ DB 스키마는 `Prisma schema` 기반으로 `Order`, `OrderItem`, `Session`, `M
   * `/events` SSE 를 구독하여 새 주문/변경을 실시간 반영
 * MVP에서는 인증 없이 단순 접근(과제 시연용)
 
+### 세션 관리 정책
+
+- `/kiosk` 진입 시 클라이언트가 UUID `sessionId` 를 생성해 `localStorage` 에 저장하고 새로고침 시 재사용한다.
+- “새 주문 시작” 버튼을 누르면 기존 sessionId를 폐기하고 새 값을 발급한다.
+- 서버는 sessionId 기준으로 `Session`/`Message` 테이블에 대화 로그를 적재하며, MVP에서는 만료 정책 없이 운영 후 일괄 정리한다.
+
+### 오류 및 예외 처리 UX
+
+- **LLM 응답 검증 실패**: “지금은 주문을 이해하지 못했습니다. 천천히 다시 말씀해 주세요.” 문구와 함께 입력 필드를 재활성화한다.
+- **DB 저장 오류**: “시스템 오류로 주문이 저장되지 않았습니다.” 토스트와 “다시 시도” 버튼을 제공한다.
+- **STT 권한 거부**: 마이크 버튼 옆에 “브라우저 설정에서 마이크를 허용하거나 키보드 입력을 이용해 주세요.” 안내를 노출한다.
+
 ---
 
 ## 7. 인프라/배포 계획
@@ -231,6 +293,16 @@ DB 스키마는 `Prisma schema` 기반으로 `Order`, `OrderItem`, `Session`, `M
 
   * Next.js 앱
   * `NEXT_PUBLIC_API_BASE_URL=http://api:4000`
+
+### 환경 변수 정리
+
+| 이름 | 예시 값 | 용도 |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | `sk-xxxx` | LLM 호출 인증 |
+| `OPENAI_MODEL` | `gpt-4o-mini` | 사용할 모델 지정 |
+| `ARTIFACTS_DIR` | `/app/artifacts/cafe` | 메뉴/별칭 아티팩트 경로 |
+| `DATABASE_URL` | `file:/app/var/malro.db` | Prisma SQLite 연결 문자열 |
+| `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:4000` | 프론트엔드에서 참조할 API 베이스 URL |
 
 ---
 
@@ -261,6 +333,27 @@ DB 스키마는 `Prisma schema` 기반으로 `Order`, `OrderItem`, `Session`, `M
 7. **버그 수정 & 시연 리허설**
 
    * 예시 시나리오(2~3개) 기준으로 전체 흐름 점검
+
+### 테스트 계획 (라이트)
+
+- **단위 테스트**
+  - 아티팩트 로더: menu/aliases/few_shots/manifest 로드 및 슬롯 규칙 검증.
+  - LLM 결과 검증: 잘못된 enum/옵션 입력 시 오류가 발생하는지 확인.
+- **E2E 시나리오**
+  1. “아이스 아메리카노 톨 2잔 포장” → ORDER_DRAFT 생성 → 주문 확정 → `/admin` 표기 확인.
+  2. “아메리카노 두 잔” → ASK(ICE/HOT) → 추가 답변 후 ORDER_DRAFT → 확정.
+
+### DB 초기화 및 시드
+
+- `npx prisma migrate dev` 로 로컬 SQLite 스키마를 초기화한다.
+- `prisma/seed.ts` 에 더미 주문 2~3개를 넣어 `/admin` 화면에서 즉시 데이터를 확인할 수 있게 한다.
+
+---
+
+## 9. 향후 확장 고려
+
+- `/admin` 실시간 갱신: 1차로 5초 폴링을 적용하고, 이후 `/events` SSE 로 전환한다.
+- **STT 추상화**: 현재는 Web Speech API를 직접 사용하되, Whisper/Clova 등 외부 STT로 교체할 수 있도록 `SpeechProvider` 인터페이스를 둔다.
 
 ```
 ```

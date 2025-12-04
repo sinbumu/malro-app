@@ -1,0 +1,12 @@
+{
+  "name": "malro-app",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev:server": "pnpm --filter server dev",
+    "dev:web": "pnpm --filter web dev",
+    "lint": "pnpm -r lint",
+    "build": "pnpm -r build"
+  },
+  "packageManager": "pnpm@10.22.0"
+}
