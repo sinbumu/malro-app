@@ -5,7 +5,7 @@ WORKDIR /app
 ENV PNPM_HOME="/root/.local/share/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
-RUN corepack enable
+RUN corepack disable && npm install -g pnpm@10.22.0
 
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
@@ -21,5 +21,5 @@ RUN pnpm --filter server build
 
 EXPOSE 4000
 
-CMD ["pnpm", "--filter", "server", "start"]
+CMD ["sh", "-c", "pnpm --filter server exec prisma db push && pnpm --filter server start"]
 
