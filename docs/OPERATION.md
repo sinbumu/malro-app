@@ -22,7 +22,7 @@ OPENAI_API_KEY=sk-xxxx
 OPENAI_MODEL=gpt-4o-mini
 ARTIFACTS_DIR=/app/artifacts/cafe
 DATABASE_URL=file:/app/data/sqlite/malro.db
-NEXT_PUBLIC_API_BASE_URL=http://<PUBLIC_IP>/api
+NEXT_PUBLIC_API_BASE_URL=https://marlo.cccv.to/api
 ```
 
 ## 3. 네트워크 & 보안
@@ -97,5 +97,53 @@ server {
 - [ ] `DATABASE_URL` 볼륨 경로 확인 (컨테이너 재시작 시 데이터 유지)
 - [ ] OpenAI API Key 를 서버 컨테이너에서만 접근 가능하도록 관리
 - [ ] HTTPS 적용 여부에 따라 STT 기능 동작 확인 (HTTP만 가능하면 STT 비활성 안내)
+
+## 8. EC2 + Route53 세팅 이후 단계
+
+아래 단계는 EC2 인스턴스 생성, 보안 그룹(80/443 허용) 설정, Route53에서 `marlo.cccv.to`가 해당 인스턴스를 바라보도록 세팅한 상태를 전제로 합니다.
+
+1. **프로젝트 가져오기**
+   ```bash
+   cd /opt
+   git clone https://github.com/blockoxyz/malro-app.git
+   cd malro-app
+   ```
+2. **환경 변수 파일 준비**
+   ```bash
+   cp env.example .env
+   ```
+   - `.env` 에 OpenAI 키, 모델, `NEXT_PUBLIC_API_BASE_URL=https://marlo.cccv.to/api`, 기타 값 입력
+   - 서버/웹 컨테이너 모두 동일 `.env` 사용
+3. **SSL 인증서 배치**
+   - 신뢰 가능한 인증기관(또는 임시 self-signed)에서 `marlo.cccv.to`용 인증서를 발급
+   - 파일명을 `infra/certs/marlo.cccv.to.crt`, `infra/certs/marlo.cccv.to.key` 로 저장
+   - 필요 시 `scp` 로 서버에 업로드 후 해당 경로로 이동
+4. **데이터 디렉터리 준비**
+   ```bash
+   mkdir -p data/sqlite
+   ```
+   - 볼륨 마운트로 SQLite 지속성 확보
+5. **필수 빌드 승인 (최초 1회)**
+   ```bash
+   pnpm approve-builds
+   ```
+6. **Docker Compose 빌드/실행**
+   ```bash
+   docker compose up -d --build
+   ```
+   - `server` 컨테이너는 부팅 시 `prisma db push`로 스키마 동기화
+7. **동작 확인**
+   - `https://marlo.cccv.to/kiosk`, `https://marlo.cccv.to/admin` 접속
+   - STT 권한 팝업 허용 여부 확인 (HTTPS에서만 동작)
+   - API 헬스체크: `curl https://marlo.cccv.to/api/health`
+8. **로그 모니터링**
+   ```bash
+   docker compose logs -f server
+   docker compose logs -f web
+   docker compose logs -f nginx
+   ```
+9. **갱신 작업**
+   - 새 커밋 배포 시 `git pull`, `docker compose up -d --build` 재실행
+   - 인증서 갱신 시 동일 파일명으로 교체 후 `docker compose restart nginx`
 
 

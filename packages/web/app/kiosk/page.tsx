@@ -516,7 +516,7 @@ function GuideModal({
           />
           <GuideStep
             title="2. 자연스럽게 말하기"
-            description="“아이스 라떼 톨 하나랑 크루아상 포장”처럼 원하는 조합을 한 번에 이야기해 주세요."
+            description="“아이스 라떼 톨 하나랑 크루아상 포장”처럼 원하는 조합을 한 번에 이야기해 주세요. 입력창에 문장이 채워지면 반드시 ‘보내기’ 버튼을 눌러야 AI가 처리합니다."
           />
           <GuideStep
             title="3. 초안 확인 후 확정"
