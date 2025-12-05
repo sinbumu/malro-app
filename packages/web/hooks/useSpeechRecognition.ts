@@ -52,11 +52,15 @@ export interface SpeechRecognitionControls {
   stop: () => void;
 }
 
+const MOBILE_UA_REGEX = /android|iphone|ipad|ipod|mobile/i;
+
 export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): SpeechRecognitionControls {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const onResultRef = useRef<SpeechRecognitionOptions['onResult']>(options.onResult);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shouldContinueRef = useRef(false);
+  const isMobileBrowserRef = useRef(false);
+  const lastMobileFinalRef = useRef("");
   const [isRecording, setIsRecording] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +75,8 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Sp
       setIsSupported(false);
       return;
     }
+    isMobileBrowserRef.current = MOBILE_UA_REGEX.test(navigator.userAgent);
+
     const speechCtor: RecognitionConstructor | undefined =
       (window as RecognitionWindow).SpeechRecognition || (window as RecognitionWindow).webkitSpeechRecognition;
 
@@ -97,10 +103,22 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Sp
         .join(" ")
         .trim();
       if (transcript) {
+        const isFinal = Boolean(result.isFinal);
+        if (isFinal && isMobileBrowserRef.current) {
+          if (transcript === lastMobileFinalRef.current) {
+            if (process.env.NODE_ENV !== "production") {
+              console.info("[STT] skip duplicate mobile final transcript", transcript);
+            }
+            return;
+          }
+          lastMobileFinalRef.current = transcript;
+        } else if (!isFinal) {
+          lastMobileFinalRef.current = "";
+        }
         setLastTranscript(transcript);
-        onResultRef.current?.(transcript, Boolean(result.isFinal));
+        onResultRef.current?.(transcript, isFinal);
         if (process.env.NODE_ENV !== "production") {
-          console.info("[STT] onresult", { transcript, isFinal: Boolean(result.isFinal) });
+          console.info("[STT] onresult", { transcript, isFinal });
         }
       }
     };
@@ -155,6 +173,7 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Sp
         restartTimerRef.current = null;
       }
       recognition.stop();
+      lastMobileFinalRef.current = "";
       recognition.onresult = null;
       recognition.onerror = null;
       recognition.onend = null;
