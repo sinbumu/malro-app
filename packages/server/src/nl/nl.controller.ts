@@ -8,7 +8,7 @@ export class NlController {
   constructor(private readonly nlService: NlService) {}
 
   @Post('parse')
-  parse(@Body() dto: ParseRequestDto): ParseResponse {
+  async parse(@Body() dto: ParseRequestDto): Promise<ParseResponse> {
     return this.nlService.parseInput(dto);
   }
 }

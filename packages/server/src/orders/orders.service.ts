@@ -77,10 +77,10 @@ export class OrdersService {
       items: order.items.map((item) => {
         const parsedOptions = item.options ? (JSON.parse(item.options) as Record<string, unknown>) : undefined;
         return {
-          id: item.id,
-          sku: item.sku,
-          label: item.label,
-          qty: item.qty,
+        id: item.id,
+        sku: item.sku,
+        label: item.label,
+        qty: item.qty,
           options: parsedOptions
         };
       })

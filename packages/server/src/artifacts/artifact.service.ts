@@ -46,7 +46,7 @@ export class ArtifactService implements OnModuleInit {
       this.readJsonlFile(EvalsetEntrySchema, path.join(artifactsDir, 'evalset.jsonl')),
       this.readJsonFile(ManifestSchema, path.join(artifactsDir, 'artifact_manifest.json'))
     ]);
-    const fewShots = fewShotsRaw as FewShotExample[];
+    const fewShots: FewShotExample[] = fewShotsRaw;
 
     this.validateCounts({ aliases, fewShots, evalset, manifest });
 
@@ -86,8 +86,10 @@ export class ArtifactService implements OnModuleInit {
 
   private async readJsonFile<T extends z.ZodTypeAny>(schema: T, filePath: string): Promise<z.output<T>> {
     const raw = await readFile(filePath, 'utf-8');
-    const json = JSON.parse(raw) as unknown;
-    return schema.parse(json);
+    const json: unknown = JSON.parse(raw);
+    const parsed = schema.parse(json) as z.output<T>;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return parsed;
   }
 
   private async readJsonlFile<T extends z.ZodTypeAny>(schema: T, filePath: string): Promise<Array<z.output<T>>> {
@@ -95,8 +97,10 @@ export class ArtifactService implements OnModuleInit {
     const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0);
     return lines.map((line, index) => {
       try {
-        const parsed = JSON.parse(line) as unknown;
-        return schema.parse(parsed);
+        const parsedJson: unknown = JSON.parse(line);
+        const value = schema.parse(parsedJson) as z.output<T>;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+        return value;
       } catch (err) {
         throw new Error(`Invalid JSONL at ${path.basename(filePath)} line ${index + 1}: ${String(err)}`);
       }

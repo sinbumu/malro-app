@@ -2,10 +2,10 @@ import { z } from 'zod';
 
 export const MenuItemSchema = z
   .object({
-    sku: z.string().min(1),
-    display: z.string().min(1),
+  sku: z.string().min(1),
+  display: z.string().min(1),
     temps: z.array(z.string().min(1)).optional(),
-    base_price: z.record(z.number().nonnegative()),
+  base_price: z.record(z.number().nonnegative()),
     sizes_enabled: z.boolean().optional(),
     allow_options: z.array(z.string().min(1)).optional()
   })
