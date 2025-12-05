@@ -114,10 +114,17 @@ server {
    ```
    - `.env` 에 OpenAI 키, 모델, `NEXT_PUBLIC_API_BASE_URL=https://malro.cccv.to/api`, 기타 값 입력
    - 서버/웹 컨테이너 모두 동일 `.env` 사용
-3. **SSL 인증서 배치**
-   - 신뢰 가능한 인증기관(또는 임시 self-signed)에서 `malro.cccv.to`용 인증서를 발급
-   - 파일명을 `infra/certs/malro.cccv.to.crt`, `infra/certs/malro.cccv.to.key` 로 저장
-   - 필요 시 `scp` 로 서버에 업로드 후 해당 경로로 이동
+3. **Let’s Encrypt 인증서 발급**
+   1. 최초 1회: `infra/certs/README.md` 참고해 `infra/certs/letsencrypt/live/malro.cccv.to/` 경로에 임시 self-signed를 생성(nginx 부팅용).
+   2. 컨테이너 기동 후(아래 6단계) 실제 인증서를 발급:
+      ```bash
+      docker compose run --rm certbot certonly \
+        --webroot -w /var/www/certbot \
+        --email you@example.com --agree-tos --no-eff-email \
+        -d malro.cccv.to
+      docker compose restart nginx
+      ```
+   3. 자동 갱신: `docker compose --profile certbot up -d certbot-renew` (12시간마다 `certbot renew` 실행)
 4. **데이터 디렉터리 준비**
    ```bash
    mkdir -p data/sqlite
@@ -144,6 +151,6 @@ server {
    ```
 9. **갱신 작업**
    - 새 커밋 배포 시 `git pull`, `docker compose up -d --build` 재실행
-   - 인증서 갱신 시 동일 파일명으로 교체 후 `docker compose restart nginx`
+   - 자동 갱신 컨테이너(`certbot-renew`)가 동작 중인지 확인하거나 수동으로 `docker compose run --rm certbot renew --webroot -w /var/www/certbot` 실행 후 `docker compose restart nginx`
 
 
