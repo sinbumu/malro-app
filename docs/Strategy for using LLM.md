@@ -48,7 +48,7 @@
 
 ## 5. Prompt & Context 최적화
 - **메뉴 압축**: LLM prompt에는 핵심 메뉴 17종만 포함. 추후 “사용자 언급 SKU + 관련군”만 골라 추가 토큰 절감 예정.
-- **few-shot 큐레이션**: 현재 예시는 2개만 사용 (대표적인 단일·멀티 주문). 향후 semantic search 기반으로 상황별 상위 N개를 선택하도록 확장 가능.
+- **few-shot 큐레이션**: 현재 예시는 10개만 사용 (대표적인 단일·멀티 주문). 향후 semantic search 기반으로 상황별 상위 N개를 선택하도록 확장 가능.
 - **대화 요약 메시지**: 히스토리가 길어지면 ConversationStore가 자체 요약 메시지를 생성해 prompt에 삽입(추후 적용 예정).
 - **hash anchoring**: System Prompt에 `artifactVersion/hash`를 명시해 “현재 버전 외 메뉴를 쓰지 말라”는 규칙을 강화.
 - **OrderType defaults**: orderType 지시가 없으면 TAKE_OUT으로 간주하도록 Prompt와 파서 양쪽에서 기본값 정의(추가 질문 최소화).

@@ -40,6 +40,19 @@ const parsedMenu: MenuItemCardData[] = ((menuData as MenuJson).items ?? []).map(
   allow_options: item.allow_options ?? []
 }));
 
+const menuImages: Record<string, string> = {
+  AMERICANO: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80",
+  CAFE_LATTE: "https://images.unsplash.com/photo-1447933601403-0c6688de566e?auto=format&fit=crop&w=400&q=80",
+  CARAMEL_MACCHIATO: "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=400&q=80",
+  MATCHA_LATTE: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80",
+  CHAI_LATTE: "https://images.unsplash.com/photo-1447933601403-0c6688de566e?auto=format&fit=crop&w=400&q=80",
+  EARL_GREY_TEA: "https://images.unsplash.com/photo-1464306076886-da185f6a9d12?auto=format&fit=crop&w=400&q=80",
+  LEMON_ADE: "https://images.unsplash.com/photo-1497534446932-c925b458314e?auto=format&fit=crop&w=400&q=80",
+  STRAWBERRY_BANANA_SMOOTHIE: "https://images.unsplash.com/photo-1497534446932-c925b458314e?auto=format&fit=crop&w=400&q=80",
+  CROISSANT: "https://images.unsplash.com/photo-1499636136210-6f4ee915583e?auto=format&fit=crop&w=400&q=80",
+  CHOCOLATE_CAKE: "https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=400&q=80"
+};
+
 export default function KioskPage() {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -175,113 +188,144 @@ export default function KioskPage() {
     }
   }, [messages]);
 
+  const nowLabel = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit" }).format(new Date());
+  const heroStats = useMemo(
+    () => [
+      { label: "현재 대기", value: draft ? draft.items.length : 0, helper: "대화 중 항목" },
+      { label: "세션 ID", value: sessionId?.slice(0, 8) ?? "신규", helper: "익명 세션" },
+      { label: "마이크", value: speech.isRecording ? "Listening" : "Idle", helper: liveTranscript ? "문장 수집 중" : "대기 중" }
+    ],
+    [draft, sessionId, speech.isRecording, liveTranscript]
+  );
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-      <section className="rounded-2xl bg-white p-6 shadow">
-        <header className="flex flex-col gap-3 border-b pb-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-orange-100 px-4 py-8">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <section className="rounded-3xl bg-white/90 p-6 shadow-xl shadow-amber-100 backdrop-blur">
+          <header className="flex flex-wrap items-center justify-between gap-4 border-b pb-4">
             <div>
-              <h1 className="text-2xl font-semibold">malro Kiosk – Order by speaking</h1>
-              <p className="text-sm text-neutral-500">
-                여기는 모의 프런트입니다. 실제 `/nl/parse` API 연결은 서버가 준비되면 교체할 예정입니다.
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">malro flagship kiosk</p>
+              <h1 className="mt-2 text-3xl font-bold text-neutral-900">음성으로 주문하고, AI가 정리합니다.</h1>
+              <p className="mt-1 text-sm text-neutral-500">서울 성수점 · {nowLabel}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-3">
+              {heroStats.map((stat) => (
+                <div key={stat.label} className="rounded-2xl border border-neutral-200 px-4 py-3 text-left">
+                  <p className="text-xs uppercase tracking-wide text-neutral-400">{stat.label}</p>
+                  <p className="text-xl font-semibold text-neutral-900">{stat.value}</p>
+                  <p className="text-[11px] text-neutral-500">{stat.helper}</p>
+                </div>
+              ))}
               <button
                 type="button"
                 onClick={() => setIsMenuOpen(true)}
-                className="rounded-2xl border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 shadow-sm hover:border-blue-500 hover:text-blue-600"
+                className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 shadow-sm hover:border-amber-400"
               >
-                메뉴판 보기
+                메뉴판 열기
               </button>
             </div>
-          </div>
-        </header>
-        <div className="mt-4 flex flex-col gap-4">
-          <div className="h-80 overflow-y-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-            {hasMessages ? (
-              <div className="flex flex-col gap-4">
-                {messages.map((message) => (
-                  <ChatMessage key={message.id} message={message} />
-                ))}
-                <div ref={scrollAnchorRef} />
+          </header>
+          <div className="mt-6 grid gap-6 lg:grid-cols-[2fr,1fr]">
+            <div className="flex flex-col gap-4">
+              <div className="h-80 overflow-y-auto rounded-2xl border border-white/60 bg-gradient-to-br from-white to-amber-50/60 p-4 shadow-inner shadow-amber-100">
+                {hasMessages ? (
+                  <div className="flex flex-col gap-4">
+                    {messages.map((message) => (
+                      <ChatMessage key={message.id} message={message} />
+                    ))}
+                    <div ref={scrollAnchorRef} />
+                  </div>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center text-sm text-neutral-400">
+                    아직 대화가 없습니다. 음료를 입력하거나 마이크 버튼을 눌러보세요.
+                  </div>
+                )}
               </div>
+
+              <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 p-4 text-xs text-amber-700">
+                다음 단계에서 Web Speech API · OpenAI LLM과 실제 연결되어 데모를 진행합니다. 지금은 샘플 API + STT로 동작합니다.
+              </div>
+
+              <div className="flex flex-col gap-3 lg:flex-row">
+                <div className="flex flex-1 gap-3">
+                  <input
+                    className="flex-1 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm shadow focus:border-amber-500 focus:outline-none"
+                    placeholder="예: 아이스 아메리카노 두 잔이랑 케이크 하나 포장"
+                    value={currentInput}
+                    onChange={(e) => setCurrentInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={isLoading}
+                    className="rounded-2xl bg-neutral-900 px-6 py-3 font-semibold text-white shadow hover:bg-neutral-800 disabled:opacity-50"
+                  >
+                    {isLoading ? "분석 중..." : "보내기"}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow">
+                  <button
+                    type="button"
+                    onClick={handleMic}
+                    className={`rounded-full px-4 py-3 text-sm font-semibold ${
+                      speech.isRecording
+                        ? "bg-red-50 text-red-600 shadow-inner shadow-red-100"
+                        : "bg-neutral-100 text-neutral-600"
+                    }`}
+                  >
+                    {speech.isRecording ? "녹음 중..." : "🎤 음성 입력"}
+                  </button>
+                  {!speech.isSupported && (
+                    <span className="text-xs text-neutral-500">HTTPS 환경에서만 음성 입력을 사용할 수 있어요.</span>
+                  )}
+                  {speech.error && <span className="text-xs text-red-500">{speech.error}</span>}
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">실시간 전사</p>
+                  <p className="mt-2 text-sm text-neutral-600">
+                    {speech.isRecording ? "듣는 중..." : liveTranscript ? "인식 완료" : "마이크를 켜면 자동으로 텍스트를 채웁니다."}
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-neutral-900">
+                    {liveTranscript || speech.lastTranscript || "아직 전사된 문장이 없습니다."}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-neutral-200 bg-white p-4 shadow">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">세션 컨트롤</p>
+                  <p className="mt-2 text-sm text-neutral-600">진행 중인 주문을 초기화하고 새 세션을 시작할 수 있습니다.</p>
+                  <button
+                    type="button"
+                    onClick={handleNewSession}
+                    className="mt-3 inline-flex items-center rounded-xl border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700 hover:border-neutral-400"
+                  >
+                    새 주문 시작
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {draft ? (
+              <OrderSummaryCard draft={draft} onConfirm={handleConfirm} isConfirming={isConfirming} />
             ) : (
-              <div className="flex h-full flex-col items-center justify-center text-sm text-neutral-400">
-                아직 대화가 없습니다. 음료를 입력하거나 마이크 버튼을 눌러보세요.
-              </div>
+              <aside className="rounded-2xl border border-dashed border-neutral-200 bg-white p-6 text-sm text-neutral-500 shadow">
+                ORDER_DRAFT가 생성되면 이 영역에서 옵션/금액/확정 버튼을 표시합니다.
+              </aside>
             )}
           </div>
+        </section>
 
-          <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-4 text-xs text-neutral-500">
-            다음 단계에서 Web Speech API · OpenAI LLM과 실제로 연결할 예정입니다.
-          </div>
-
-          <div className="flex gap-3">
-            <input
-              className="flex-1 rounded-2xl border border-neutral-300 px-4 py-3 text-sm focus:border-blue-600 focus:outline-none"
-              placeholder="예: 아이스 아메리카노 톨 사이즈 두 잔 포장"
-              value={currentInput}
-              onChange={(e) => setCurrentInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            />
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={isLoading}
-              className="rounded-2xl bg-blue-600 px-6 py-3 font-semibold text-white shadow hover:bg-blue-500 disabled:opacity-50"
-            >
-              {isLoading ? "분석 중..." : "보내기"}
-            </button>
-            <div className="flex flex-col items-start gap-1">
-              <button
-                type="button"
-                onClick={handleMic}
-                className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
-                  speech.isRecording ? "border-red-400 text-red-500 shadow-inner" : "border-neutral-300 text-neutral-600"
-                }`}
-              >
-                {speech.isRecording ? "녹음 중..." : "🎤"}
-              </button>
-              {!speech.isSupported && (
-                <span className="text-xs text-neutral-500">HTTPS 환경에서만 음성 입력을 사용할 수 있어요.</span>
-              )}
-              {speech.error && (
-                <span className="text-xs text-red-500">{speech.error}</span>
-              )}
-            </div>
-          </div>
-          {speech.isRecording && (
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
-              🗣 실시간 인식: {liveTranscript || "듣고 있습니다..."}
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={handleNewSession}
-            className="self-start text-sm text-neutral-500 underline decoration-dotted"
-          >
-            새 주문 시작
-          </button>
-        </div>
-      </section>
-
-      {draft ? (
-        <OrderSummaryCard draft={draft} onConfirm={handleConfirm} isConfirming={isConfirming} />
-      ) : (
-        <aside className="rounded-2xl bg-white p-6 text-sm text-neutral-500 shadow">
-          ORDER_DRAFT가 생성되면 이 영역에서 자세한 옵션/확정 버튼을 표시합니다.
-        </aside>
-      )}
-      {isMenuOpen ? (
-        <MenuModal
-          menuItems={filteredMenu}
-          search={menuQuery}
-          onSearchChange={setMenuQuery}
-          onClose={() => setIsMenuOpen(false)}
-        />
-      ) : null}
-
+        {isMenuOpen ? (
+          <MenuModal
+            menuItems={filteredMenu}
+            search={menuQuery}
+            onSearchChange={setMenuQuery}
+            onClose={() => setIsMenuOpen(false)}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -328,22 +372,23 @@ function MenuModal({
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               {menuItems.map((item) => (
-                <article key={item.sku} className="rounded-2xl border border-neutral-200 p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
+                <article key={item.sku} className="overflow-hidden rounded-2xl border border-neutral-200 shadow-sm">
+                  <div className="relative h-32 w-full overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={menuImages[item.sku] ?? `https://source.unsplash.com/400x300/?coffee&sig=${item.sku}`}
+                      alt={item.display}
+                      className="h-full w-full object-cover"
+                    />
+                    <span className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-neutral-700">
+                      {item.sizes_enabled ? "사이즈 선택" : "단일 사이즈"}
+                    </span>
+                  </div>
+                  <div className="space-y-3 p-4">
                     <div>
-                      <p className="text-lg font-semibold">{item.display}</p>
+                      <p className="text-lg font-semibold text-neutral-900">{item.display}</p>
                       <p className="text-xs text-neutral-400">{item.sku}</p>
                     </div>
-                    {item.sizes_enabled ? (
-                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
-                        사이즈 선택
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-500">
-                        단일 사이즈
-                      </span>
-                    )}
-                  </div>
                   <div className="mt-3 text-sm text-neutral-700">
                     {Object.entries(item.base_price).map(([temp, price]) => (
                       <div key={`${item.sku}-${temp}`} className="flex justify-between text-xs text-neutral-600">
@@ -358,6 +403,7 @@ function MenuModal({
                   {item.allow_options.length > 0 && (
                     <p className="mt-1 text-xs text-neutral-400">옵션: {item.allow_options.join(", ")}</p>
                   )}
+                  </div>
                 </article>
               ))}
             </div>
