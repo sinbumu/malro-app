@@ -103,9 +103,6 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Sp
           console.info("[STT] onresult", { transcript, isFinal: Boolean(result.isFinal) });
         }
       }
-      if (result.isFinal) {
-        setIsRecording(false);
-      }
     };
 
     recognition.onerror = (evt: SpeechRecognitionErrorEventLike) => {
@@ -175,6 +172,9 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Sp
     }
 
     try {
+      if (isRecording) {
+        return;
+      }
       setError(null);
       setIsRecording(true);
       shouldContinueRef.current = true;
@@ -186,7 +186,7 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Sp
       setError(err instanceof Error ? err.message : "음성 인식을 시작할 수 없습니다.");
       setIsRecording(false);
     }
-  }, []);
+  }, [isRecording]);
 
   const stop = useCallback(() => {
     const recognition = recognitionRef.current;

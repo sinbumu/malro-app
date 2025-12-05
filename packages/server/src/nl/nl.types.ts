@@ -1,4 +1,4 @@
-export type MissingSlot = 'temp' | 'size' | 'orderType' | 'menu';
+export type MissingSlot = 'temp' | 'size' | 'menu';
 
 export type AskResponse = {
   type: 'ASK';

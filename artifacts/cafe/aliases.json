@@ -52,6 +52,12 @@
   "카페 모카": {
     "sku": "CAFE_MOCHA"
   },
+  "카페못가": {
+    "sku": "CAFE_MOCHA"
+  },
+  "카페 못가": {
+    "sku": "CAFE_MOCHA"
+  },
   "바닐라 라떼": {
     "sku": "VANILLA_LATTE"
   },
@@ -250,6 +256,12 @@
     "sku": "CROISSANT"
   },
   "초코 케이크": {
+    "sku": "CHOCOLATE_CAKE"
+  },
+  "치즈케이크": {
+    "sku": "CHOCOLATE_CAKE"
+  },
+  "치즈 케이크": {
     "sku": "CHOCOLATE_CAKE"
   },
   "초코 케익": {

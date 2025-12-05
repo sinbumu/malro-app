@@ -11,6 +11,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages ./packages
 COPY artifacts ./artifacts
 
+RUN mkdir -p node_modules/.pnpm
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter web build
 

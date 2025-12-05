@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import menuData from "../../../../artifacts/cafe/menu.json";
 import { ChatMessage as ChatMessageType, OrderDraft, callParseApi, confirmOrder } from "../../lib/apiMock";
 import { ChatMessage } from "../../components/ChatMessage";
@@ -42,6 +42,7 @@ const parsedMenu: MenuItemCardData[] = ((menuData as MenuJson).items ?? []).map(
 
 export default function KioskPage() {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
+  const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
   const [currentInput, setCurrentInput] = useState("");
   const [liveTranscript, setLiveTranscript] = useState("");
   const [draft, setDraft] = useState<OrderDraft | null>(null);
@@ -109,7 +110,10 @@ export default function KioskPage() {
             id: crypto.randomUUID(),
             role: "assistant",
             type: "draft",
-            content: `${result.draft.items[0].label} 주문 초안을 생성했어요.`,
+            content:
+              result.draft.items.length > 1
+                ? `주문 초안을 업데이트했습니다. ${result.draft.items.length}개의 항목을 확인하신 뒤 확정해 주세요.`
+                : "주문 초안을 생성했습니다. 옵션을 확인한 뒤 확정 버튼을 눌러주세요.",
             createdAt: new Date().toISOString()
           }
         ]);
@@ -165,6 +169,12 @@ export default function KioskPage() {
     }
   }, [speech.isRecording]);
 
+  useEffect(() => {
+    if (scrollAnchorRef.current) {
+      scrollAnchorRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages]);
+
   return (
     <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
       <section className="rounded-2xl bg-white p-6 shadow">
@@ -194,6 +204,7 @@ export default function KioskPage() {
                 {messages.map((message) => (
                   <ChatMessage key={message.id} message={message} />
                 ))}
+                <div ref={scrollAnchorRef} />
               </div>
             ) : (
               <div className="flex h-full flex-col items-center justify-center text-sm text-neutral-400">

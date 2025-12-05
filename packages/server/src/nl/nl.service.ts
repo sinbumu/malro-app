@@ -1,13 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { z } from 'zod';
 import { ArtifactService } from '../artifacts/artifact.service';
-import { ArtifactManifest, MenuItem } from '../artifacts/artifact.types';
+import { ArtifactManifest, FewShotExample, MenuItem } from '../artifacts/artifact.types';
+import { ConversationStore } from './conversation.store';
 import { ParseRequestDto } from './dto/parse-request.dto';
 import { AskResponse, MissingSlot, OrderDraftItem, OrderDraftResponse, ParseResponse } from './nl.types';
 
-const MissingSlotSchema = z.enum(['temp', 'size', 'orderType', 'menu']);
+const MissingSlotSchema = z.enum(['temp', 'size', 'menu']);
 
 const LlmAskSchema = z.object({
   type: z.literal('ASK'),
@@ -28,7 +30,7 @@ const LlmOrderItemSchema = z.object({
 const LlmOrderSchema = z.object({
   type: z.literal('ORDER_DRAFT'),
   data: z.object({
-    orderType: z.enum(['DINE_IN', 'TAKE_OUT']).default('DINE_IN'),
+    orderType: z.enum(['DINE_IN', 'TAKE_OUT']).default('TAKE_OUT'),
     notes: z.string().optional(),
     items: z.array(LlmOrderItemSchema).min(1)
   })
@@ -52,13 +54,17 @@ export class NlService {
   private readonly logger = new Logger(NlService.name);
   private readonly openAi?: OpenAI;
   private readonly openAiModel?: string;
-  private readonly openAiTemperature: number;
+  private readonly openAiTemperature?: number;
 
-  constructor(private readonly artifactService: ArtifactService, private readonly configService: ConfigService) {
+  constructor(
+    private readonly artifactService: ArtifactService,
+    private readonly configService: ConfigService,
+    private readonly conversation: ConversationStore
+  ) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     this.openAiModel = this.configService.get<string>('OPENAI_MODEL') ?? undefined;
     const temperature = this.configService.get<string>('OPENAI_TEMPERATURE');
-    this.openAiTemperature = temperature ? Number(temperature) : 0.2;
+    this.openAiTemperature = typeof temperature === 'string' && temperature.length > 0 ? Number(temperature) : undefined;
 
     if (apiKey && this.openAiModel) {
       const baseURL = this.configService.get<string>('OPENAI_BASE_URL');
@@ -73,16 +79,22 @@ export class NlService {
 
   async parseInput(dto: ParseRequestDto): Promise<ParseResponse> {
     const rawText = dto.inputText?.trim();
+    const sessionId = dto.sessionId;
     if (!rawText) {
-      return this.ask(['menu'], '메뉴를 다시 한번 정확히 말씀해 주세요.');
+      const response = this.ask(['menu'], '메뉴를 다시 한번 정확히 말씀해 주세요.');
+      this.recordAssistantMessage(sessionId, response);
+      return response;
     }
 
-    const llm = await this.tryOpenAiPipeline(rawText, dto.sessionId);
-    if (llm) {
-      return llm;
+    if (sessionId) {
+      this.conversation.appendMessage(sessionId, { role: 'user', content: rawText });
     }
 
-    return this.runRuleBasedPipeline(rawText);
+    const llm = await this.tryOpenAiPipeline(rawText, sessionId);
+    const response = llm ?? this.runRuleBasedPipeline(rawText, sessionId);
+
+    this.recordAssistantMessage(sessionId, response);
+    return response;
   }
 
   private async tryOpenAiPipeline(rawText: string, sessionId?: string): Promise<ParseResponse | null> {
@@ -93,31 +105,24 @@ export class NlService {
     try {
       const menu = this.artifactService.getMenu();
       const manifest = this.artifactService.getManifest();
+      const fewShots = this.artifactService.getFewShots();
       const snapshot = this.buildMenuSnapshot(menu.items);
+      const history = sessionId ? this.conversation.getHistory(sessionId) : [];
 
-      const systemPrompt =
-        'You are a Korean cafe ordering assistant. '
-        + 'Convert the user\'s natural language request into either an ASK or an ORDER_DRAFT JSON object. '
-        + 'If required information (menu item, temperature, size, quantity, orderType, or options) is missing or unclear, respond with type "ASK" and describe what is missing. '
-        + 'If you understand the full order, respond with type "ORDER_DRAFT" including items (sku, label, qty, options) and orderType (DINE_IN or TAKE_OUT). '
-        + 'Use only SKUs and menu names provided in the catalog. Do not invent items. Always return valid JSON without additional text.';
-
-      const userPrompt = [
-        `Session ID: ${sessionId ?? 'new-session'}`,
-        'User utterance:',
-        rawText,
-        'Menu catalog (use only these entries):',
-        JSON.stringify(snapshot),
-        'Return either an ASK or ORDER_DRAFT JSON object as described.'
-      ].join('\n');
+      const messages: ChatCompletionMessageParam[] = [
+        { role: 'system', content: this.buildSystemPrompt(snapshot, manifest) },
+        ...this.buildFewShotMessages(fewShots),
+        ...history.map((msg) => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        { role: 'user', content: rawText }
+      ];
 
       const completion = await this.openAi.chat.completions.create({
         model: this.openAiModel,
-        temperature: this.openAiTemperature,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ]
+        ...(typeof this.openAiTemperature === 'number' ? { temperature: this.openAiTemperature } : {}),
+        messages
       });
 
       const message = completion.choices.at(0)?.message?.content?.trim();
@@ -131,9 +136,13 @@ export class NlService {
         return null;
       }
 
-      const parsed = LlmResponseSchema.safeParse(JSON.parse(jsonText));
+      const normalizedPayload = this.normalizeLlmPayload(JSON.parse(jsonText));
+      const parsed = LlmResponseSchema.safeParse(normalizedPayload);
       if (!parsed.success) {
-        this.logger.warn('LLM 응답 스키마 검증 실패', parsed.error.flatten());
+        this.logger.warn('LLM 응답 스키마 검증 실패', {
+          errors: parsed.error.flatten(),
+          payload: normalizedPayload
+        });
         return null;
       }
 
@@ -144,28 +153,46 @@ export class NlService {
     }
   }
 
-  private runRuleBasedPipeline(rawText: string): ParseResponse {
+  private runRuleBasedPipeline(rawText: string, sessionId?: string): ParseResponse {
     const artifacts = this.artifactService.artifacts;
     const normalized = this.normalize(rawText);
-    const candidate = this.findSkuCandidate(normalized);
+    const pending = sessionId ? this.conversation.getPendingState(sessionId) : null;
+    const candidate = this.findSkuCandidate(normalized) ?? (pending ? { sku: pending.sku } : null);
 
     if (!candidate) {
+      if (sessionId) {
+        this.conversation.clearPendingState(sessionId);
+      }
       return this.ask(['menu'], '어떤 메뉴인지 다시 말씀해 주세요.');
     }
 
     const menuItem = artifacts.menu.items.find((item) => item.sku === candidate.sku);
     if (!menuItem) {
+      if (sessionId) {
+        this.conversation.clearPendingState(sessionId);
+      }
       return this.ask(['menu'], '등록되지 않은 메뉴입니다. 다른 메뉴를 말씀해 주세요.');
     }
 
-    const temp = candidate.temp ?? this.detectTemp(rawText);
-    const size = candidate.size ?? this.detectSize(rawText);
+    const temp = this.detectTemp(rawText) ?? candidate.temp ?? pending?.filledOptions.temp;
+    const size = this.detectSize(rawText) ?? candidate.size ?? pending?.filledOptions.size;
     const qty = this.detectQuantity(rawText);
-    const orderType = this.detectOrderType(rawText);
+    const orderType = this.detectOrderType(rawText) ?? 'TAKE_OUT';
 
     const missing = this.collectMissingSlots(menuItem, { temp, size });
     if (missing.length > 0) {
+      if (sessionId) {
+        this.conversation.setPendingState(sessionId, {
+          sku: menuItem.sku,
+          filledOptions: { temp, size },
+          missingSlots: missing
+        });
+      }
       return this.ask(missing, this.buildAskMessage(missing, menuItem), ensureSizeHints(missing, menuItem));
+    }
+
+    if (sessionId) {
+      this.conversation.clearPendingState(sessionId);
     }
 
     const item: OrderDraftItem = {
@@ -216,7 +243,7 @@ export class NlService {
     return {
       type: 'ORDER_DRAFT',
       data: {
-        orderType: payload.data.orderType,
+        orderType: payload.data.orderType ?? 'TAKE_OUT',
         items: normalizedItems,
         notes: payload.data.notes,
         artifactVersion: manifest.version,
@@ -234,6 +261,42 @@ export class NlService {
       options: item.allow_options ?? [],
       basePrice: item.base_price ?? {}
     }));
+  }
+
+  private buildSystemPrompt(snapshot: MenuSnapshotItem[], manifest: ArtifactManifest): string {
+    return [
+      'You are an ordering assistant for a Korean cafe kiosk.',
+      'Always return strict JSON with either {"type":"ASK", ...} or {"type":"ORDER_DRAFT", ...}.',
+      'ASK responses must include missingSlots (array of "menu"|"temp"|"size"|"orderType") and a short Korean message.',
+      'ORDER_DRAFT responses must include items[{sku,label?,qty,options?}] and optional notes. If orderType is omitted, assume TAKE_OUT by default.',
+      'Use only SKUs that exist in the provided menu catalog; never invent menu items.',
+      `Artifact version: ${manifest.version} (${manifest.source_hash}).`,
+      'Menu catalog:',
+      JSON.stringify(snapshot)
+    ].join('\n');
+  }
+
+  private buildFewShotMessages(fewShots: FewShotExample[], limit = 4): ChatCompletionMessageParam[] {
+    return fewShots
+      .slice(0, limit)
+      .flatMap<ChatCompletionMessageParam>((shot) => [
+        { role: 'user', content: shot.input },
+        { role: 'assistant', content: JSON.stringify(shot.target) }
+      ]);
+  }
+
+  private recordAssistantMessage(sessionId: string | undefined, response: ParseResponse) {
+    if (!sessionId) {
+      return;
+    }
+    const summary =
+      response.type === 'ASK'
+        ? `ASK: ${response.data.message}`
+        : `ORDER_DRAFT: ${response.data.items
+            .map((item) => `${item.qty}x ${item.label ?? item.sku}`)
+            .join(', ')}`;
+    const content = `${summary}\n${JSON.stringify(response)}`;
+    this.conversation.appendMessage(sessionId, { role: 'assistant', content });
   }
 
   private normalizeLlmOptions(options?: Record<string, unknown>): Record<string, string> | undefined {
@@ -287,7 +350,7 @@ export class NlService {
     if (/(ice|아이스|차가운|시원)/.test(tokens)) {
       return 'ICE';
     }
-    if (/(hot|핫|따뜻|뜨거|따숩)/.test(tokens)) {
+    if (/(hot|핫|하스|하스로|핫으로|따뜻|뜨거|따숩)/.test(tokens)) {
       return 'HOT';
     }
     return undefined;
@@ -295,13 +358,13 @@ export class NlService {
 
   private detectSize(text: string): string | undefined {
     const tokens = text.toLowerCase();
-    if (/(벤티|venti|라지|large|big)/.test(tokens)) {
+    if (/(벤티|venti|라지|large|big|큰\s?거|크게|큰\s?사이즈)/.test(tokens)) {
       return 'L';
     }
-    if (/(톨|tall|레귤러|regular|미디엄|medium)/.test(tokens)) {
+    if (/(톨|tall|레귤러|regular|미디엄|medium|보통)/.test(tokens)) {
       return 'M';
     }
-    if (/(숏|small|스몰)/.test(tokens)) {
+    if (/(숏|small|스몰|작게|작은\s?거)/.test(tokens)) {
       return 'S';
     }
     return undefined;
@@ -318,12 +381,15 @@ export class NlService {
     return text.includes('두 잔') ? 2 : 1;
   }
 
-  private detectOrderType(text: string): 'DINE_IN' | 'TAKE_OUT' {
+  private detectOrderType(text: string): 'DINE_IN' | 'TAKE_OUT' | undefined {
     const lowered = text.toLowerCase();
-    if (/(포장|테이크아웃|가지고|to\s?go)/.test(lowered)) {
+    if (/(포장|테이크아웃|가지고|사갈|사\s?가|가져갈|to\s?go)/.test(lowered)) {
       return 'TAKE_OUT';
     }
-    return 'DINE_IN';
+    if (/(매장|먹고|자리에서|here|매장에서|머물러)/.test(lowered)) {
+      return 'DINE_IN';
+    }
+    return undefined;
   }
 
   private collectMissingSlots(item: MenuItem, options: { temp?: string; size?: string }): MissingSlot[] {
@@ -356,9 +422,6 @@ export class NlService {
     if (slots.includes('size')) {
       return `${menuItem.display}의 원하는 사이즈(S/M/L 등)를 알려주세요.`;
     }
-    if (slots.includes('orderType')) {
-      return '매장 이용인지 포장인지 알려 주세요.';
-    }
     return '정보가 부족해요. 한번 더 말씀해 주세요.';
   }
 
@@ -374,6 +437,53 @@ export class NlService {
 
   private normalize(text: string) {
     return text.toLowerCase().replace(/\s+/g, '');
+  }
+
+  private normalizeLlmPayload(payload: unknown): unknown {
+    if (typeof payload !== 'object' || payload === null) {
+      return payload;
+    }
+
+    const base = payload as Record<string, unknown>;
+    if (!('type' in base)) {
+      return payload;
+    }
+
+    if (base.type === 'ASK') {
+      if (base.data && typeof base.data === 'object') {
+        return payload;
+      }
+      const message = typeof base.message === 'string' ? base.message : '';
+      const missingSlots = Array.isArray(base.missingSlots) ? base.missingSlots : [];
+      const optionsHint = Array.isArray(base.optionsHint) ? base.optionsHint : undefined;
+      return {
+        type: 'ASK',
+        data: {
+          message,
+          missingSlots,
+          optionsHint
+        }
+      };
+    }
+
+    if (base.type === 'ORDER_DRAFT') {
+      if (base.data && typeof base.data === 'object') {
+        return payload;
+      }
+      const orderType = typeof base.orderType === 'string' ? base.orderType : 'TAKE_OUT';
+      const items = Array.isArray(base.items) ? base.items : [];
+      const notes = typeof base.notes === 'string' ? base.notes : undefined;
+      return {
+        type: 'ORDER_DRAFT',
+        data: {
+          orderType,
+          items,
+          notes
+        }
+      };
+    }
+
+    return payload;
   }
 
   private serializeOptionValue(value: unknown): string | undefined {
