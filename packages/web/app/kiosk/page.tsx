@@ -46,12 +46,14 @@ const menuImages: Record<string, string> = {
   CARAMEL_MACCHIATO: "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=400&q=80",
   MATCHA_LATTE: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=400&q=80",
   CHAI_LATTE: "https://images.unsplash.com/photo-1447933601403-0c6688de566e?auto=format&fit=crop&w=400&q=80",
-  EARL_GREY_TEA: "https://images.unsplash.com/photo-1464306076886-da185f6a9d12?auto=format&fit=crop&w=400&q=80",
+  EARL_GREY_TEA: "https://images.unsplash.com/photo-1505576399279-565b52d4ac71?auto=format&fit=crop&w=400&q=80",
   LEMON_ADE: "https://images.unsplash.com/photo-1497534446932-c925b458314e?auto=format&fit=crop&w=400&q=80",
   STRAWBERRY_BANANA_SMOOTHIE: "https://images.unsplash.com/photo-1497534446932-c925b458314e?auto=format&fit=crop&w=400&q=80",
   CROISSANT: "https://images.unsplash.com/photo-1499636136210-6f4ee915583e?auto=format&fit=crop&w=400&q=80",
   CHOCOLATE_CAKE: "https://images.unsplash.com/photo-1505253758473-96b7015fcd40?auto=format&fit=crop&w=400&q=80"
 };
+
+const GUIDE_DISMISS_KEY = "malro-kiosk-guide-dismissed";
 
 export default function KioskPage() {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -62,6 +64,8 @@ export default function KioskPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [guideDontShowChecked, setGuideDontShowChecked] = useState(false);
   const [menuQuery, setMenuQuery] = useState("");
   const speech = useSpeechRecognition({
     lang: "ko-KR",
@@ -88,6 +92,15 @@ export default function KioskPage() {
       return item.display.includes(keyword) || item.sku.toLowerCase().includes(lower);
     });
   }, [menuQuery]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(GUIDE_DISMISS_KEY) === "true";
+    setGuideDontShowChecked(stored);
+    if (!stored) {
+      setIsGuideOpen(true);
+    }
+  }, []);
 
   async function handleSend() {
     if (!currentInput.trim() || isLoading) return;
@@ -176,6 +189,25 @@ export default function KioskPage() {
     }
   }
 
+  function handleGuideConfirm() {
+    if (typeof window !== "undefined") {
+      if (guideDontShowChecked) {
+        window.localStorage.setItem(GUIDE_DISMISS_KEY, "true");
+      } else {
+        window.localStorage.removeItem(GUIDE_DISMISS_KEY);
+      }
+    }
+    setIsGuideOpen(false);
+  }
+
+  function handleGuideOpen() {
+    if (typeof window !== "undefined") {
+      const stored = window.localStorage.getItem(GUIDE_DISMISS_KEY) === "true";
+      setGuideDontShowChecked(stored);
+    }
+    setIsGuideOpen(true);
+  }
+
   useEffect(() => {
     if (!speech.isRecording) {
       setLiveTranscript("");
@@ -218,6 +250,13 @@ export default function KioskPage() {
               ))}
               <button
                 type="button"
+                onClick={handleGuideOpen}
+                className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 shadow-sm transition hover:border-blue-300"
+              >
+                사용 가이드
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsMenuOpen(true)}
                 className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 shadow-sm hover:border-amber-400"
               >
@@ -242,10 +281,6 @@ export default function KioskPage() {
                 )}
               </div>
 
-              <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50/60 p-4 text-xs text-amber-700">
-                다음 단계에서 Web Speech API · OpenAI LLM과 실제 연결되어 데모를 진행합니다. 지금은 샘플 API + STT로 동작합니다.
-              </div>
-
               <div className="flex flex-col gap-3 lg:flex-row">
                 <div className="flex flex-1 gap-3">
                   <input
@@ -264,18 +299,37 @@ export default function KioskPage() {
                     {isLoading ? "분석 중..." : "보내기"}
                   </button>
                 </div>
-                <div className="flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow">
+                <div className="flex flex-1 flex-col gap-2 rounded-2xl border border-amber-200 bg-white/90 p-4 shadow-lg shadow-amber-100">
                   <button
                     type="button"
                     onClick={handleMic}
-                    className={`rounded-full px-4 py-3 text-sm font-semibold ${
+                    aria-pressed={speech.isRecording}
+                    className={`group relative flex w-full items-center justify-center gap-3 rounded-2xl px-6 py-4 text-base font-semibold text-white transition-all focus:outline-none focus:ring-4 ${
                       speech.isRecording
-                        ? "bg-red-50 text-red-600 shadow-inner shadow-red-100"
-                        : "bg-neutral-100 text-neutral-600"
+                        ? "bg-gradient-to-r from-rose-500 via-red-500 to-orange-500 shadow-[0_20px_45px_rgba(248,113,113,0.35)] focus:ring-red-200"
+                        : "bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500 shadow-[0_18px_40px_rgba(251,191,36,0.35)] hover:brightness-105 focus:ring-amber-200"
                     }`}
                   >
-                    {speech.isRecording ? "녹음 중..." : "🎤 음성 입력"}
+                    <span
+                      className={`h-3 w-3 rounded-full ${
+                        speech.isRecording ? "bg-white animate-pulse" : "bg-white/80"
+                      }`}
+                    />
+                    <span>{speech.isRecording ? "음성 인식 중 · 다시 눌러 종료" : "🎤 음성 인식 시작"}</span>
                   </button>
+                  <div className="flex flex-wrap items-center justify-between text-[12px] text-neutral-500">
+                    <span>
+                      {speech.isRecording
+                        ? "한 문장을 마쳐도 계속 듣습니다. 멈추려면 버튼을 다시 눌러 주세요."
+                        : "마이크 권한 허용 후 버튼을 누르면 실시간으로 전사가 시작됩니다."}
+                    </span>
+                    {speech.isRecording && (
+                      <span className="flex items-center gap-1 text-red-500">
+                        <span className="h-2 w-2 animate-ping rounded-full bg-red-400" />
+                        LIVE
+                      </span>
+                    )}
+                  </div>
                   {!speech.isSupported && (
                     <span className="text-xs text-neutral-500">HTTPS 환경에서만 음성 입력을 사용할 수 있어요.</span>
                   )}
@@ -323,6 +377,13 @@ export default function KioskPage() {
             search={menuQuery}
             onSearchChange={setMenuQuery}
             onClose={() => setIsMenuOpen(false)}
+          />
+        ) : null}
+        {isGuideOpen ? (
+          <GuideModal
+            dontShowChecked={guideDontShowChecked}
+            onDontShowChange={setGuideDontShowChecked}
+            onClose={handleGuideConfirm}
           />
         ) : null}
       </div>
@@ -410,6 +471,90 @@ function MenuModal({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function GuideModal({
+  dontShowChecked,
+  onDontShowChange,
+  onClose
+}: {
+  dontShowChecked: boolean;
+  onDontShowChange: (value: boolean) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">quick guide</p>
+            <h2 className="mt-1 text-2xl font-bold text-neutral-900">말로 주문하는 방법</h2>
+          </div>
+          <button
+            type="button"
+            aria-label="가이드 닫기"
+            onClick={onClose}
+            className="rounded-full border border-neutral-300 px-3 py-1 text-sm text-neutral-600 hover:border-neutral-500"
+          >
+            닫기
+          </button>
+        </div>
+        <div className="space-y-4 px-6 py-6 text-sm text-neutral-700">
+          <GuideStep
+            title="1. 음성 인식 시작"
+            description="하단의 ‘음성 인식 시작’ 버튼을 누르면 LED가 켜지고 바로 음성을 수집합니다."
+          />
+          <GuideStep
+            title="2. 자연스럽게 말하기"
+            description="“아이스 라떼 톨 하나랑 크루아상 포장”처럼 원하는 조합을 한 번에 이야기해 주세요."
+          />
+          <GuideStep
+            title="3. 초안 확인 후 확정"
+            description="AI가 정리한 주문 초안을 오른쪽 카드에서 확인하고, 맞다면 ‘주문 확정’을 눌러 마무리합니다."
+          />
+          <div className="flex items-center gap-2 rounded-2xl bg-amber-50/60 px-4 py-3 text-xs text-amber-800">
+            <span className="text-lg">💡</span>
+            <p>
+              버튼을 다시 누르기 전까지는 자동으로 듣기를 유지합니다. 긴 주문도 끊기지 않고 인식해요.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-neutral-600">
+            <input
+              type="checkbox"
+              checked={dontShowChecked}
+              onChange={(event) => onDontShowChange(event.target.checked)}
+              className="h-4 w-4 rounded border-neutral-300 text-amber-600 focus:ring-amber-500"
+            />
+            다시 보지 않기
+          </label>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-2xl bg-neutral-900 py-3 text-sm font-semibold text-white shadow hover:bg-neutral-800"
+          >
+            이해했어요
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GuideStep({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-2xl border border-neutral-100 bg-neutral-50/60 px-4 py-3">
+      <p className="text-sm font-semibold text-neutral-900">{title}</p>
+      <p className="mt-1 text-sm text-neutral-600">{description}</p>
     </div>
   );
 }
