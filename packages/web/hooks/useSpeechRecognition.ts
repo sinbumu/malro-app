@@ -61,6 +61,7 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Sp
   const shouldContinueRef = useRef(false);
   const isMobileBrowserRef = useRef(false);
   const lastMobileFinalRef = useRef("");
+  const mobileFinalAccumulatorRef = useRef("");
   const [isRecording, setIsRecording] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,24 +103,46 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Sp
         .map((item) => item?.transcript ?? "")
         .join(" ")
         .trim();
-      if (transcript) {
-        const isFinal = Boolean(result.isFinal);
-        if (isFinal && isMobileBrowserRef.current) {
-          if (transcript === lastMobileFinalRef.current) {
-            if (process.env.NODE_ENV !== "production") {
-              console.info("[STT] skip duplicate mobile final transcript", transcript);
-            }
-            return;
+      if (!transcript) {
+        return;
+      }
+
+      const isFinal = Boolean(result.isFinal);
+      let payloadTranscript = transcript;
+
+      if (isFinal && isMobileBrowserRef.current) {
+        const baseline = mobileFinalAccumulatorRef.current;
+        let delta = transcript;
+        if (baseline && transcript.startsWith(baseline)) {
+          delta = transcript.slice(baseline.length).trimStart();
+        }
+        if (!delta && transcript === lastMobileFinalRef.current) {
+          if (process.env.NODE_ENV !== "production") {
+            console.info("[STT] skip duplicate mobile final transcript", transcript);
           }
-          lastMobileFinalRef.current = transcript;
-        } else if (!isFinal) {
-          lastMobileFinalRef.current = "";
+          return;
         }
-        setLastTranscript(transcript);
-        onResultRef.current?.(transcript, isFinal);
-        if (process.env.NODE_ENV !== "production") {
-          console.info("[STT] onresult", { transcript, isFinal });
+        if (!delta) {
+          // baseline mismatch: fall back to entire transcript once
+          delta = transcript;
         }
+        payloadTranscript = delta;
+        mobileFinalAccumulatorRef.current = transcript;
+        lastMobileFinalRef.current = transcript;
+      } else if (isFinal) {
+        lastMobileFinalRef.current = transcript;
+      } else {
+        lastMobileFinalRef.current = "";
+      }
+
+      if (!payloadTranscript) {
+        return;
+      }
+
+      setLastTranscript(transcript);
+      onResultRef.current?.(payloadTranscript, isFinal);
+      if (process.env.NODE_ENV !== "production") {
+        console.info("[STT] onresult", { transcript: payloadTranscript, raw: transcript, isFinal });
       }
     };
 
@@ -174,6 +197,7 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Sp
       }
       recognition.stop();
       lastMobileFinalRef.current = "";
+      mobileFinalAccumulatorRef.current = "";
       recognition.onresult = null;
       recognition.onerror = null;
       recognition.onend = null;
@@ -197,6 +221,8 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Sp
       setError(null);
       setIsRecording(true);
       shouldContinueRef.current = true;
+      lastMobileFinalRef.current = "";
+      mobileFinalAccumulatorRef.current = "";
       if (process.env.NODE_ENV !== "production") {
         console.info("[STT] start recognition");
       }
@@ -222,6 +248,8 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}): Sp
     }
     recognition.stop();
     setIsRecording(false);
+    lastMobileFinalRef.current = "";
+    mobileFinalAccumulatorRef.current = "";
   }, []);
 
   return {
