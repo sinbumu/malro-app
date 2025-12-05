@@ -19,6 +19,10 @@ export default function AdminPage() {
       { label: "픽업 대기", value: ready, helper: "콜벨 안내 필요" }
     ];
   }, [orders]);
+  const createdFormatter = useMemo(
+    () => new Intl.DateTimeFormat("ko-KR", { dateStyle: "short", timeStyle: "short" }),
+    []
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -91,7 +95,7 @@ export default function AdminPage() {
             {orders.map((order) => (
               <tr key={order.id} className="border-t text-sm">
                 <td className="px-4 py-3 font-mono text-xs text-neutral-500">{order.id}</td>
-                <td className="px-4 py-3 text-neutral-500">{new Date(order.createdAt).toLocaleTimeString()}</td>
+                <td className="px-4 py-3 text-neutral-500">{createdFormatter.format(new Date(order.createdAt))}</td>
                 <td className="px-4 py-3">
                   {order.items.map((item) => (
                     <div key={item.sku} className="text-xs text-neutral-600">
